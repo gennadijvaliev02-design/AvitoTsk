@@ -269,7 +269,7 @@
         <div class="eyebrow">Объявления рядом с вами</div>
         <h1>Найди <span>свою машину</span> в Цхинвале</h1>
         <p>Автомобили, мотоциклы и техника от местных продавцов — быстро и без посредников.</p>
-        <div class="hero-stats"><span class="hero-stat"><strong>●</strong> 934 автомобиля</span><span class="hero-stat">Без посредников</span></div>
+        <div class="hero-stats"><span class="hero-stat"><strong>●</strong> <span id="heroCount">загрузка объявлений…</span></span><span class="hero-stat">Без посредников</span></div>
         <div class="search-box">
           <div class="search-input">
             <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
@@ -339,16 +339,16 @@
       <div class="modal-head"><h2>Новое объявление</h2><button class="close" data-close="sellModal">×</button></div>
       <form class="form" id="sellForm">
         <div class="form-grid">
-          <div class="field"><label>КАТЕГОРИЯ *</label><select required><option value="">Выберите</option><option>Автомобиль</option><option>Мотоцикл</option><option>Грузовая техника</option><option>Запчасти</option><option>Другое</option></select></div>
-          <div class="field"><label>ЦЕНА, ₽ *</label><input type="number" min="0" placeholder="Например, 1 500 000" required /></div>
-          <div class="field"><label>МАРКА *</label><input placeholder="Toyota" required /></div>
-          <div class="field"><label>МОДЕЛЬ *</label><input placeholder="Camry" required /></div>
-          <div class="field"><label>ГОД *</label><input type="number" min="1950" max="2027" placeholder="2020" required /></div>
-          <div class="field"><label>ПРОБЕГ, КМ</label><input type="number" min="0" placeholder="Можно пропустить" /></div>
-          <div class="field full"><label>ФОТОГРАФИИ *</label><div class="photo-drop"><input id="photos" type="file" accept="image/*" multiple required /><label for="photos">Выбрать фотографии</label><div id="photoStatus">до 10 фотографий</div></div></div>
-          <div class="field full"><label>ОПИСАНИЕ</label><textarea placeholder="Расскажите о состоянии и комплектации. Можно пропустить."></textarea></div>
-          <div class="field"><label>ТЕЛЕФОН</label><input type="tel" placeholder="+7 929 000-00-00" /></div>
-          <div class="field"><label>TELEGRAM</label><input placeholder="@username или ссылка" /></div>
+          <div class="field"><label>КАТЕГОРИЯ *</label><select name="category" required><option value="">Выберите</option><option>Автомобиль</option><option>Мотоцикл</option><option>Грузовая техника</option><option>Запчасти</option><option>Другое</option></select></div>
+          <div class="field"><label>ЦЕНА, ₽ *</label><input name="price_rub" type="number" min="1" placeholder="Например, 1 500 000" required /></div>
+          <div class="field"><label>МАРКА *</label><input name="brand" maxlength="80" placeholder="Toyota" required /></div>
+          <div class="field"><label>МОДЕЛЬ *</label><input name="model" maxlength="80" placeholder="Camry" required /></div>
+          <div class="field"><label>ГОД *</label><input name="year" type="number" min="1950" max="2027" placeholder="2020" required /></div>
+          <div class="field"><label>ПРОБЕГ, КМ</label><input name="mileage_km" type="number" min="0" placeholder="Можно пропустить" /></div>
+          <div class="field full"><label>ФОТОГРАФИИ *</label><div class="photo-drop"><input id="photos" name="photos" type="file" accept="image/*" multiple required /><label for="photos">Выбрать фотографии</label><div id="photoStatus">до 10 фотографий · сайт сам уменьшит размер</div></div></div>
+          <div class="field full"><label>ОПИСАНИЕ</label><textarea name="description" maxlength="3000" placeholder="Расскажите о состоянии и комплектации. Можно пропустить."></textarea></div>
+          <div class="field"><label>ТЕЛЕФОН</label><input name="phone" type="tel" maxlength="40" placeholder="+7 929 000-00-00" /></div>
+          <div class="field"><label>TELEGRAM</label><input name="telegram" maxlength="120" placeholder="@username или ссылка" /></div>
         </div>
         <div class="expiry-notice"><strong>Важно:</strong><span>объявление будет опубликовано на 21 день, после чего автоматически удалится, чтобы сайт не засорялся неактуальными предложениями.</span></div>
         <p class="form-note">Укажите хотя бы один способ связи: телефон или Telegram. После публикации объявление сразу появится на сайте.</p>
@@ -401,7 +401,9 @@
 
     const money = value => new Intl.NumberFormat('ru-RU').format(value) + ' ₽';
     const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
-    const saveFavorites = () => localStorage.setItem('avito-tsk-favorites', JSON.stringify([...favorites]));
+    const saveFavorites = () => {
+      try { localStorage.setItem('avito-tsk-favorites', JSON.stringify([...favorites])); } catch (error) {}
+    };
 
     function filteredListings() {
       const query = document.getElementById('searchInput').value.trim().toLowerCase();
@@ -409,7 +411,8 @@
       return listings.filter(item => {
         const categoryOk = currentCategory === 'all' || currentCategory === item.type || (currentCategory === 'other' && !['cars','moto','trucks'].includes(item.type));
         const filterOk = currentFilter === 'all' || currentFilter === item.age;
-        const searchOk = !query || item.title.toLowerCase().includes(query) || item.type.includes(query);
+        const searchable = [item.title, item.type, item.year, item.desc, item.city].join(' ').toLowerCase();
+        const searchOk = !query || searchable.includes(query);
         const priceOk = max === 'all' || item.price <= Number(max);
         const favOk = !favoritesOnly || favorites.has(String(item.id));
         return categoryOk && filterOk && searchOk && priceOk && favOk;
@@ -435,6 +438,23 @@
       emptyEl.classList.toggle('show', items.length === 0);
       resultText.textContent = favoritesOnly ? `В избранном: ${items.length}` : `Найдено объявлений: ${items.length}`;
       document.getElementById('favCount').textContent = favorites.size;
+    }
+
+    function updateCounters() {
+      const counts = listings.reduce((result, item) => {
+        result.all++;
+        result[item.type] = (result[item.type] || 0) + 1;
+        return result;
+      }, { all: 0 });
+      document.getElementById('heroCount').textContent = `${counts.cars || 0} автомобилей`;
+      document.querySelectorAll('.category').forEach(button => {
+        const type = button.dataset.category;
+        const count = type === 'other'
+          ? listings.filter(item => !['cars','moto','trucks','parts'].includes(item.type)).length
+          : (counts[type] || 0);
+        const small = button.querySelector('small');
+        if (small) small.textContent = `${count} ${count === 1 ? 'объявление' : 'объявлений'}`;
+      });
     }
 
     function showToast(message) {
@@ -510,37 +530,94 @@
     document.getElementById('favoritesBtn').addEventListener('click', showFavorites);
     document.getElementById('mobileFav').addEventListener('click', showFavorites);
     document.querySelectorAll('[data-scroll]').forEach(btn => btn.addEventListener('click', () => window.scrollTo({top: btn.dataset.scroll === 'top' ? 0 : document.getElementById(btn.dataset.scroll).offsetTop - 70, behavior:'smooth'})));
-    document.getElementById('photos').addEventListener('change', e => document.getElementById('photoStatus').textContent = e.target.files.length ? `Выбрано фотографий: ${e.target.files.length}` : 'до 10 фотографий');
-    const fileToBase64 = file => new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({ name: file.name, mimeType: file.type, data: String(reader.result).split(',')[1] });
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+    const photoInput = document.getElementById('photos');
+    const photoStatus = document.getElementById('photoStatus');
+    const MAX_PHOTOS = 10;
+    const MAX_IMAGE_SIDE = 1600;
+    const JPEG_QUALITY = .82;
+
+    photoInput.addEventListener('change', e => {
+      const files = [...e.target.files];
+      if (files.length > MAX_PHOTOS) {
+        e.target.value = '';
+        photoStatus.textContent = 'Можно выбрать не больше 10 фотографий';
+        showToast('Выберите не больше 10 фотографий');
+        return;
+      }
+      const megabytes = files.reduce((sum, file) => sum + file.size, 0) / 1024 / 1024;
+      photoStatus.textContent = files.length
+        ? `Выбрано: ${files.length} · исходный размер ${megabytes.toFixed(1)} МБ · перед отправкой сожмём`
+        : 'до 10 фотографий · сайт сам уменьшит размер';
     });
+
+    const blobToBase64 = blob => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1]);
+      reader.onerror = () => reject(new Error('Не удалось прочитать фотографию'));
+      reader.readAsDataURL(blob);
+    });
+
+    const loadPhoto = file => new Promise((resolve, reject) => {
+      const image = new Image();
+      const url = URL.createObjectURL(file);
+      image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
+      image.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Не удалось обработать файл ${file.name}`)); };
+      image.src = url;
+    });
+
+    async function compressPhoto(file) {
+      if (!file.type.startsWith('image/')) throw new Error(`${file.name} не является изображением`);
+      const image = await loadPhoto(file);
+      const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(image.naturalWidth, image.naturalHeight));
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#fff'; context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
+      if (!blob) throw new Error(`Не удалось сжать файл ${file.name}`);
+      return {
+        name: file.name.replace(/\.[^.]+$/, '') + '.jpg',
+        mimeType: 'image/jpeg',
+        data: await blobToBase64(blob)
+      };
+    }
     document.getElementById('sellForm').addEventListener('submit', async e => {
       e.preventDefault();
       const form = e.target;
-      const fields = form.querySelectorAll('input, select, textarea');
-      const category = fields[0].value;
-      const price_rub = fields[1].value;
-      const brand = fields[2].value.trim();
-      const model = fields[3].value.trim();
-      const year = fields[4].value;
-      const mileage_km = fields[5].value;
-      const photos = [...document.getElementById('photos').files];
-      const phone = fields[8].value.trim();
-      const telegram = fields[9].value.trim();
+      const photos = [...photoInput.files];
+      const phone = form.elements.phone.value.trim();
+      const telegram = form.elements.telegram.value.trim();
       if (!phone && !telegram) { showToast('Укажите телефон или Telegram'); return; }
+      if (!photos.length) { showToast('Добавьте хотя бы одну фотографию'); return; }
       const submit = form.querySelector('button[type="submit"]');
-      submit.disabled = true; submit.textContent = 'Публикуем…';
+      submit.disabled = true; submit.textContent = 'Подготавливаем фото…';
       try {
-        const payload = { category, price_rub, brand, model, year, mileage_km, description: fields[7].value.trim(), phone, telegram, photos: await Promise.all(photos.slice(0, 10).map(fileToBase64)) };
+        const compressedPhotos = [];
+        for (let index = 0; index < photos.length; index++) {
+          photoStatus.textContent = `Сжимаем фотографию ${index + 1} из ${photos.length}…`;
+          compressedPhotos.push(await compressPhoto(photos[index]));
+        }
+        submit.textContent = 'Публикуем…';
+        const payload = {
+          category: form.elements.category.value,
+          price_rub: form.elements.price_rub.value,
+          brand: form.elements.brand.value.trim(),
+          model: form.elements.model.value.trim(),
+          year: form.elements.year.value,
+          mileage_km: form.elements.mileage_km.value,
+          description: form.elements.description.value.trim(),
+          phone, telegram, photos: compressedPhotos
+        };
         const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
         const result = await response.json();
         if (!result.ok) throw new Error(result.error || 'Не удалось опубликовать');
-        closeModal('sellModal'); form.reset(); document.getElementById('photoStatus').textContent='до 10 фотографий'; showToast('Объявление опубликовано на 21 день ✓');
+        closeModal('sellModal'); form.reset(); photoStatus.textContent='до 10 фотографий · сайт сам уменьшит размер'; showToast('Объявление опубликовано на 21 день ✓');
         await loadListingsFromSheet();
       } catch (error) {
+        photoStatus.textContent = 'Проверьте фотографии и попробуйте ещё раз';
         showToast(error.message || 'Ошибка публикации');
       } finally { submit.disabled = false; submit.textContent = 'Опубликовать объявление'; }
     });
@@ -567,16 +644,17 @@
             image: item.image && item.image !== 'assets/car-silver.jpg'
               ? item.image
               : fallbackImages[item.id] || (item.type === 'moto' ? 'assets/motorcycle.jpg' : item.type === 'trucks' ? 'assets/truck.jpg' : 'assets/car-silver.jpg')
-          }));
-          render();
+          })).sort((a, b) => Number(b.id) - Number(a.id));
+          updateCounters(); render();
           showToast(`Загружено из таблицы: ${listings.length}`);
         }
       } catch (error) {
         console.warn('Google Sheets API недоступен, оставляем демо-данные', error);
+        updateCounters(); render();
       }
     }
 
-    render();
+    updateCounters(); render();
     loadListingsFromSheet();
   </script>
 </body>
