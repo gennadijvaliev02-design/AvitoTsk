@@ -182,6 +182,7 @@
     .detail-content .detail-price { font-size: 30px; font-weight: 900; margin: 0 0 18px; }
     .detail-content p { color: #656a71; line-height: 1.6; }
     .contact-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+    .contact-row > :only-child { grid-column: 1 / -1; }
     .contact-row button { border: 0; border-radius: 13px; padding: 14px; font-weight: 800; }
     .phone-btn { background: var(--red); color: #fff; }
     .tg-btn { background: #eaf6ff; color: #1289d4; }
@@ -350,7 +351,7 @@
           <div class="field"><label>TELEGRAM</label><input placeholder="@username или ссылка" /></div>
         </div>
         <div class="expiry-notice"><strong>Важно:</strong><span>объявление будет опубликовано на 21 день, после чего автоматически удалится, чтобы сайт не засорялся неактуальными предложениями.</span></div>
-        <p class="form-note">Укажите хотя бы один способ связи: телефон или Telegram. В прототипе объявление не отправляется на сервер.</p>
+        <p class="form-note">Укажите хотя бы один способ связи: телефон или Telegram. После публикации объявление сразу появится на сайте.</p>
         <button class="primary-btn" type="submit">Опубликовать объявление</button>
       </form>
     </div>
@@ -390,8 +391,17 @@
     let currentFilter = 'all';
     let favoritesOnly = false;
     let favorites = new Set();
+    let currentDetailId = null;
+
+    try {
+      favorites = new Set(JSON.parse(localStorage.getItem('avito-tsk-favorites') || '[]').map(String));
+    } catch (error) {
+      favorites = new Set();
+    }
 
     const money = value => new Intl.NumberFormat('ru-RU').format(value) + ' ₽';
+    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+    const saveFavorites = () => localStorage.setItem('avito-tsk-favorites', JSON.stringify([...favorites]));
 
     function filteredListings() {
       const query = document.getElementById('searchInput').value.trim().toLowerCase();
@@ -401,7 +411,7 @@
         const filterOk = currentFilter === 'all' || currentFilter === item.age;
         const searchOk = !query || item.title.toLowerCase().includes(query) || item.type.includes(query);
         const priceOk = max === 'all' || item.price <= Number(max);
-        const favOk = !favoritesOnly || favorites.has(item.id);
+        const favOk = !favoritesOnly || favorites.has(String(item.id));
         return categoryOk && filterOk && searchOk && priceOk && favOk;
       });
     }
@@ -409,17 +419,17 @@
     function render() {
       const items = filteredListings();
       cardsEl.innerHTML = items.map(item => `
-        <article class="card" data-id="${item.id}">
+        <article class="card" data-id="${escapeHtml(item.id)}">
           <div class="card-image">
-            <img src="${item.image}" alt="${item.title}" loading="lazy" />
-            <span class="badge">${item.badge}</span>
-            <button class="fav ${favorites.has(item.id) ? 'active' : ''}" data-fav="${item.id}" aria-label="Добавить в избранное">${favorites.has(item.id) ? '♥' : '♡'}</button>
+            <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" loading="lazy" onerror="this.onerror=null;this.src='assets/car-silver.jpg'" />
+            <span class="badge">${escapeHtml(item.badge)}</span>
+            <button class="fav ${favorites.has(String(item.id)) ? 'active' : ''}" data-fav="${escapeHtml(item.id)}" aria-label="Добавить в избранное">${favorites.has(String(item.id)) ? '♥' : '♡'}</button>
           </div>
           <div class="card-body">
             <p class="price">${money(item.price)}</p>
-            <h3>${item.title}</h3>
-            <div class="specs"><span>${item.year}</span><span>${item.mileage}</span><span>Цхинвал</span></div>
-            <div class="meta"><span>${item.posted}</span><span class="verified">● Местный продавец</span></div>
+            <h3>${escapeHtml(item.title)}</h3>
+            <div class="specs"><span>${escapeHtml(item.year)}</span><span>${escapeHtml(item.mileage)}</span><span>${escapeHtml(item.city || 'Цхинвал')}</span></div>
+            <div class="meta"><span>${escapeHtml(item.posted)}</span><span class="verified">● Местный продавец</span></div>
           </div>
         </article>`).join('');
       emptyEl.classList.toggle('show', items.length === 0);
@@ -437,12 +447,32 @@
     function closeModal(id) { const el = document.getElementById(id); el.classList.remove('open'); el.setAttribute('aria-hidden','true'); document.body.style.overflow = ''; }
 
     function showDetails(id) {
-      const item = listings.find(x => x.id === Number(id));
+      const item = listings.find(x => String(x.id) === String(id));
+      if (!item) { showToast('Объявление не найдено'); return; }
+      currentDetailId = String(item.id);
+      const contacts = [
+        item.phone ? '<button class="phone-btn" data-contact="phone">Позвонить продавцу</button>' : '',
+        item.telegram ? '<button class="tg-btn" data-contact="telegram">Написать в Telegram</button>' : ''
+      ].filter(Boolean).join('');
       document.getElementById('detailCard').innerHTML = `
-        <div class="modal-head"><span class="badge" style="position:static">${item.badge}</span><button class="close" data-close="detailModal">×</button></div>
-        <div class="detail-cover"><img src="${item.image}" alt="${item.title}" /></div>
-        <div class="detail-content"><div class="specs"><span>${item.year}</span><span>${item.mileage}</span><span>Цхинвал</span></div><h2>${item.title}</h2><p class="detail-price">${money(item.price)}</p><p>${item.desc}</p><div class="contact-row"><button class="phone-btn" data-demo="phone">Показать телефон</button><button class="tg-btn" data-demo="telegram">Написать в Telegram</button></div></div>`;
+        <div class="modal-head"><span class="badge" style="position:static">${escapeHtml(item.badge)}</span><button class="close" data-close="detailModal">×</button></div>
+        <div class="detail-cover"><img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" onerror="this.onerror=null;this.src='assets/car-silver.jpg'" /></div>
+        <div class="detail-content"><div class="specs"><span>${escapeHtml(item.year)}</span><span>${escapeHtml(item.mileage)}</span><span>${escapeHtml(item.city || 'Цхинвал')}</span></div><h2>${escapeHtml(item.title)}</h2><p class="detail-price">${money(item.price)}</p><p>${escapeHtml(item.desc)}</p><div class="contact-row">${contacts || '<span>Контакты продавца не указаны</span>'}</div></div>`;
       openModal('detailModal');
+    }
+
+    function openContact(type) {
+      const item = listings.find(x => String(x.id) === currentDetailId);
+      if (!item) return;
+      if (type === 'phone' && item.phone) {
+        showToast(item.phone);
+        window.location.href = `tel:${String(item.phone).replace(/[^+\d]/g, '')}`;
+      }
+      if (type === 'telegram' && item.telegram) {
+        const value = String(item.telegram).trim();
+        const url = /^https?:\/\//i.test(value) ? value : `https://t.me/${value.replace(/^@/, '')}`;
+        window.open(url, '_blank', 'noopener');
+      }
     }
 
     document.addEventListener('click', e => {
@@ -453,15 +483,15 @@
       if (e.target.classList.contains('modal')) closeModal(e.target.id);
       const fav = e.target.closest('[data-fav]');
       if (fav) {
-        e.stopPropagation(); const id = Number(fav.dataset.fav);
+        e.stopPropagation(); const id = String(fav.dataset.fav);
         favorites.has(id) ? favorites.delete(id) : favorites.add(id);
-        render(); showToast(favorites.has(id) ? 'Добавлено в избранное' : 'Удалено из избранного');
+        saveFavorites(); render(); showToast(favorites.has(id) ? 'Добавлено в избранное' : 'Удалено из избранного');
         return;
       }
       const card = e.target.closest('.card');
       if (card) showDetails(card.dataset.id);
-      const demo = e.target.closest('[data-demo]');
-      if (demo) showToast(demo.dataset.demo === 'phone' ? '+7 929 800-24-24' : 'Открываем Telegram продавца…');
+      const contact = e.target.closest('[data-contact]');
+      if (contact) openContact(contact.dataset.contact);
     });
 
     document.querySelectorAll('.category').forEach(btn => btn.addEventListener('click', () => {
