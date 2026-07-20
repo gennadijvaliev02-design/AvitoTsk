@@ -481,7 +481,39 @@
     document.getElementById('mobileFav').addEventListener('click', showFavorites);
     document.querySelectorAll('[data-scroll]').forEach(btn => btn.addEventListener('click', () => window.scrollTo({top: btn.dataset.scroll === 'top' ? 0 : document.getElementById(btn.dataset.scroll).offsetTop - 70, behavior:'smooth'})));
     document.getElementById('photos').addEventListener('change', e => document.getElementById('photoStatus').textContent = e.target.files.length ? `Выбрано фотографий: ${e.target.files.length}` : 'до 10 фотографий');
-    document.getElementById('sellForm').addEventListener('submit', e => { e.preventDefault(); closeModal('sellModal'); e.target.reset(); document.getElementById('photoStatus').textContent='до 10 фотографий'; showToast('Демо: объявление готово к публикации ✓'); });
+    const fileToBase64 = file => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: file.name, mimeType: file.type, data: String(reader.result).split(',')[1] });
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    document.getElementById('sellForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const form = e.target;
+      const fields = form.querySelectorAll('input, select, textarea');
+      const category = fields[0].value;
+      const price_rub = fields[1].value;
+      const brand = fields[2].value.trim();
+      const model = fields[3].value.trim();
+      const year = fields[4].value;
+      const mileage_km = fields[5].value;
+      const photos = [...document.getElementById('photos').files];
+      const phone = fields[8].value.trim();
+      const telegram = fields[9].value.trim();
+      if (!phone && !telegram) { showToast('Укажите телефон или Telegram'); return; }
+      const submit = form.querySelector('button[type="submit"]');
+      submit.disabled = true; submit.textContent = 'Публикуем…';
+      try {
+        const payload = { category, price_rub, brand, model, year, mileage_km, description: fields[7].value.trim(), phone, telegram, photos: await Promise.all(photos.slice(0, 10).map(fileToBase64)) };
+        const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (!result.ok) throw new Error(result.error || 'Не удалось опубликовать');
+        closeModal('sellModal'); form.reset(); document.getElementById('photoStatus').textContent='до 10 фотографий'; showToast('Объявление опубликовано на 21 день ✓');
+        await loadListingsFromSheet();
+      } catch (error) {
+        showToast(error.message || 'Ошибка публикации');
+      } finally { submit.disabled = false; submit.textContent = 'Опубликовать объявление'; }
+    });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal.open').forEach(x => closeModal(x.id)); });
     async function loadListingsFromSheet() {
       if (!API_URL) return;
