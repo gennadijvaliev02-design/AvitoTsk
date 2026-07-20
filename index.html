@@ -489,7 +489,23 @@
         const response = await fetch(API_URL);
         const payload = await response.json();
         if (payload.ok && Array.isArray(payload.listings)) {
-          listings = payload.listings;
+          const fallbackImages = {
+            1: 'assets/car-silver.jpg',
+            2: 'assets/car-black.jpg',
+            3: 'assets/car-black.jpg',
+            4: 'assets/car-silver.jpg',
+            5: 'assets/truck.jpg',
+            6: 'assets/motorcycle.jpg',
+            7: 'assets/car-silver.jpg',
+            8: 'assets/car-black.jpg',
+            9: 'assets/car-black.jpg'
+          };
+          listings = payload.listings.map(item => ({
+            ...item,
+            image: item.image && item.image !== 'assets/car-silver.jpg'
+              ? item.image
+              : fallbackImages[item.id] || (item.type === 'moto' ? 'assets/motorcycle.jpg' : item.type === 'trucks' ? 'assets/truck.jpg' : 'assets/car-silver.jpg')
+          }));
           render();
           showToast(`Загружено из таблицы: ${listings.length}`);
         }
