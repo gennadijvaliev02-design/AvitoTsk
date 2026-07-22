@@ -61,6 +61,9 @@
     .ghost-btn:hover { background: #eceef0; }
     .primary-btn { background: var(--red); color: #fff; padding: 13px 19px; box-shadow: 0 8px 20px rgba(239,49,36,.2); }
     .primary-btn:hover { background: var(--red-dark); transform: translateY(-1px); }
+    .auth-btn { border: 0; border-radius: 13px; background: #eaf6ff; color: #1289d4; padding: 12px 16px; font-weight: 800; white-space: nowrap; }
+    .auth-btn:hover { background: #dcefff; }
+    .auth-btn.signed-in { background: #eaf8f2; color: var(--green); }
 
     .hero { padding: 58px 0 30px; }
     .hero-panel {
@@ -174,6 +177,15 @@
     .expiry-notice { display: flex; gap: 10px; align-items: flex-start; margin: 18px 0 8px; padding: 12px 13px; border: 1px solid #ffd6d2; border-radius: 13px; background: #fff6f5; color: #8f3b34; font-size: 12px; line-height: 1.45; }
     .expiry-notice strong { color: var(--red); white-space: nowrap; }
     .form .primary-btn { width: 100%; padding: 15px; }
+    .auth-content { padding: 6px 26px 30px; text-align: center; }
+    .auth-content p { color: var(--muted); line-height: 1.55; margin: 8px auto 22px; max-width: 440px; }
+    .telegram-widget { min-height: 48px; display: flex; align-items: center; justify-content: center; }
+    .auth-user { display: none; }
+    .auth-user.show { display: block; }
+    .auth-guest.hidden { display: none; }
+    .auth-avatar { width: 74px; height: 74px; border-radius: 50%; object-fit: cover; margin: 4px auto 14px; background: var(--soft); }
+    .auth-user-name { font-size: 22px; font-weight: 850; }
+    .logout-btn { margin-top: 20px; border: 0; border-radius: 12px; padding: 12px 18px; color: #8d3430; background: #fff1ef; font-weight: 800; }
 
     .detail-cover { aspect-ratio: 2 / 1; overflow: hidden; }
     .detail-cover img { height: 100%; object-fit: cover; }
@@ -203,6 +215,8 @@
       .brand-mark { width: 34px; height: 34px; border-radius: 11px; font-size: 18px; }
       .brand-name { font-size: 17px; }
       .header-actions .ghost-btn { display: none; }
+      .header-actions { gap: 6px; }
+      .auth-btn { max-width: 112px; overflow: hidden; text-overflow: ellipsis; padding: 11px 12px; font-size: 12px; }
       .header-actions .primary-btn { font-size: 12px; padding: 11px 13px; }
       .hero { padding: 18px 0 20px; }
       .hero-panel {
@@ -257,6 +271,7 @@
         <a href="#fresh">Автомобили</a><a href="#categories">Категории</a><a href="#footer">Помощь</a>
       </nav>
       <div class="header-actions">
+        <button class="auth-btn" id="authBtn" type="button">Войти</button>
         <button class="ghost-btn" id="favoritesBtn">♡ Избранное <span id="favCount">0</span></button>
         <button class="primary-btn open-sell">+ Подать объявление</button>
       </div>
@@ -361,6 +376,32 @@
     <div class="modal-card" id="detailCard"></div>
   </div>
 
+  <div class="modal" id="authModal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-head"><h2>Вход через Telegram</h2><button class="close" data-close="authModal" aria-label="Закрыть">×</button></div>
+      <div class="auth-content">
+        <div class="auth-guest" id="authGuest">
+          <p>Войдите, чтобы подавать объявления и управлять ими. Telegram передаст только данные, которые вы подтвердите.</p>
+          <div class="telegram-widget">
+            <script async src="https://telegram.org/js/telegram-widget.js?22"
+              data-telegram-login="AvitoReg_bot"
+              data-size="large"
+              data-radius="12"
+              data-userpic="true"
+              data-request-access="write"
+              data-onauth="onTelegramAuth(user)"></script>
+          </div>
+        </div>
+        <div class="auth-user" id="authUser">
+          <img class="auth-avatar" id="authAvatar" alt="Аватар пользователя" />
+          <div class="auth-user-name" id="authUserName"></div>
+          <p id="authUserHandle"></p>
+          <button class="logout-btn" id="logoutBtn" type="button">Выйти</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="mobile-nav">
     <button class="active" data-scroll="top"><span>⌂</span>Главная</button>
     <button data-scroll="categories"><span>▦</span>Категории</button>
@@ -369,6 +410,7 @@
   </div>
   <div class="toast" id="toast"></div>
 
+  <script src="config.js"></script>
   <script>
     const DEMO_LISTINGS = [
       { id: 1, title: 'Toyota Camry 3.5 AT', price: 3650000, year: 2021, mileage: '48 000 км', type: 'cars', age: 'recent', badge: 'Проверено', image: 'assets/car-silver.jpg', posted: 'сегодня, 09:24', desc: 'Автомобиль в отличном состоянии. Один владелец, своевременное обслуживание, богатая комплектация.' },
@@ -383,7 +425,10 @@
     ];
 
     let listings = DEMO_LISTINGS;
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzWnDuFpTXtoR0RTYEs2P1R-fJvy9cHBuGtoVRV4KTEoyOCCT-QKBqb-HyeFBu73J4g/exec';
+    const APP_CONFIG = window.AVITO_CONFIG || {};
+    const API_URL = APP_CONFIG.listingsApiUrl || '';
+    const AUTH_API_URL = APP_CONFIG.telegramAuthApiUrl || '';
+    const AUTH_STORAGE_KEY = 'avito-tsk-auth';
     const cardsEl = document.getElementById('cards');
     const emptyEl = document.getElementById('emptyState');
     const resultText = document.getElementById('resultsText');
@@ -392,6 +437,8 @@
     let favoritesOnly = false;
     let favorites = new Set();
     let currentDetailId = null;
+    let currentAuth = null;
+    let pendingAction = null;
 
     try {
       favorites = new Set(JSON.parse(localStorage.getItem('avito-tsk-favorites') || '[]').map(String));
@@ -403,6 +450,59 @@
     const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
     const saveFavorites = () => {
       try { localStorage.setItem('avito-tsk-favorites', JSON.stringify([...favorites])); } catch (error) {}
+    };
+
+    function decodeSessionExpiry(token) {
+      try {
+        const encoded = String(token || '').split('.')[0];
+        const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')));
+        return Number(payload.exp || 0);
+      } catch (error) { return 0; }
+    }
+
+    function loadAuth() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || 'null');
+        if (saved?.sessionToken && decodeSessionExpiry(saved.sessionToken) * 1000 > Date.now()) currentAuth = saved;
+        else localStorage.removeItem(AUTH_STORAGE_KEY);
+      } catch (error) { localStorage.removeItem(AUTH_STORAGE_KEY); }
+      renderAuth();
+    }
+
+    function renderAuth() {
+      const button = document.getElementById('authBtn');
+      const guest = document.getElementById('authGuest');
+      const signed = document.getElementById('authUser');
+      if (!button || !guest || !signed) return;
+      const user = currentAuth?.user;
+      button.textContent = user ? (user.first_name || user.username || 'Профиль') : 'Войти';
+      button.classList.toggle('signed-in', Boolean(user));
+      guest.classList.toggle('hidden', Boolean(user));
+      signed.classList.toggle('show', Boolean(user));
+      if (user) {
+        document.getElementById('authUserName').textContent = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Пользователь Telegram';
+        document.getElementById('authUserHandle').textContent = user.username ? `@${user.username}` : `Telegram ID: ${user.id}`;
+        const avatar = document.getElementById('authAvatar');
+        avatar.src = user.photo_url || 'assets/other.jpg';
+      }
+    }
+
+    window.onTelegramAuth = async function onTelegramAuth(user) {
+      if (!AUTH_API_URL) { showToast('Сервис авторизации не настроен'); return; }
+      const params = new URLSearchParams();
+      Object.entries(user || {}).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) params.set(key, String(value));
+      });
+      try {
+        const response = await fetch(AUTH_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Не удалось войти');
+        currentAuth = { user: result.user, sessionToken: result.sessionToken };
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentAuth));
+        renderAuth(); closeModal('authModal'); showToast('Вход выполнен ✓');
+        if (pendingAction === 'sell') { pendingAction = null; openModal('sellModal'); }
+      } catch (error) { showToast(error.message || 'Ошибка авторизации'); }
     };
 
     function filteredListings() {
@@ -497,7 +597,10 @@
 
     document.addEventListener('click', e => {
       const sell = e.target.closest('.open-sell');
-      if (sell) openModal('sellModal');
+      if (sell) {
+        if (currentAuth) openModal('sellModal');
+        else { pendingAction = 'sell'; openModal('authModal'); showToast('Сначала войдите через Telegram'); }
+      }
       const close = e.target.closest('[data-close]');
       if (close) closeModal(close.dataset.close);
       if (e.target.classList.contains('modal')) closeModal(e.target.id);
@@ -529,6 +632,10 @@
     function showFavorites() { favoritesOnly = true; render(); document.getElementById('fresh').scrollIntoView({behavior:'smooth'}); if (!favorites.size) showToast('Добавляйте объявления сердечком'); }
     document.getElementById('favoritesBtn').addEventListener('click', showFavorites);
     document.getElementById('mobileFav').addEventListener('click', showFavorites);
+    document.getElementById('authBtn').addEventListener('click', () => openModal('authModal'));
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      currentAuth = null; pendingAction = null; localStorage.removeItem(AUTH_STORAGE_KEY); renderAuth(); closeModal('authModal'); showToast('Вы вышли из аккаунта');
+    });
     document.querySelectorAll('[data-scroll]').forEach(btn => btn.addEventListener('click', () => window.scrollTo({top: btn.dataset.scroll === 'top' ? 0 : document.getElementById(btn.dataset.scroll).offsetTop - 70, behavior:'smooth'})));
     const photoInput = document.getElementById('photos');
     const photoStatus = document.getElementById('photoStatus');
@@ -586,6 +693,7 @@
     }
     document.getElementById('sellForm').addEventListener('submit', async e => {
       e.preventDefault();
+      if (!currentAuth) { closeModal('sellModal'); pendingAction = 'sell'; openModal('authModal'); showToast('Сначала войдите через Telegram'); return; }
       const form = e.target;
       const photos = [...photoInput.files];
       const phone = form.elements.phone.value.trim();
@@ -609,7 +717,9 @@
           year: form.elements.year.value,
           mileage_km: form.elements.mileage_km.value,
           description: form.elements.description.value.trim(),
-          phone, telegram, photos: compressedPhotos
+          phone, telegram, photos: compressedPhotos,
+          telegram_user_id: currentAuth?.user?.id || '',
+          auth_session: currentAuth?.sessionToken || ''
         };
         const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
         const result = await response.json();
@@ -654,7 +764,7 @@
       }
     }
 
-    updateCounters(); render();
+    loadAuth(); updateCounters(); render();
     loadListingsFromSheet();
   </script>
 </body>
