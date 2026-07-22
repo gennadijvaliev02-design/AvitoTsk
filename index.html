@@ -188,8 +188,13 @@
     .auth-user-name { font-size: 22px; font-weight: 850; }
     .logout-btn { margin-top: 20px; border: 0; border-radius: 12px; padding: 12px 18px; color: #8d3430; background: #fff1ef; font-weight: 800; }
 
+    .detail-gallery { background: var(--soft); }
     .detail-cover { aspect-ratio: 2 / 1; overflow: hidden; }
     .detail-cover img { height: 100%; object-fit: cover; }
+    .detail-thumbs { display: flex; gap: 8px; overflow-x: auto; padding: 10px; }
+    .detail-thumb { flex: 0 0 82px; height: 58px; padding: 0; overflow: hidden; border: 2px solid transparent; border-radius: 9px; background: #fff; }
+    .detail-thumb.active { border-color: var(--red); }
+    .detail-thumb img { width: 100%; height: 100%; object-fit: cover; }
     .detail-content { padding: 23px 26px 28px; }
     .detail-content h2 { margin: 5px 0 4px; }
     .detail-content .detail-price { font-size: 30px; font-weight: 900; margin: 0 0 18px; }
@@ -571,6 +576,8 @@
         const avatar = document.getElementById('authAvatar');
         avatar.src = user.photo_url || 'assets/other.jpg';
       }
+      const detailModal = document.getElementById('detailModal');
+      if (currentDetailId && detailModal?.classList.contains('open')) showDetails(currentDetailId);
     }
 
     window.onTelegramAuth = async function onTelegramAuth(user) {
@@ -663,6 +670,12 @@
         item.telegram ? '<button class="tg-btn" data-contact="telegram">Написать в Telegram</button>' : ''
       ].filter(Boolean).join('');
       const isOwner = currentAuth?.user?.id && String(item.owner_telegram_id || '') === String(currentAuth.user.id);
+      const photos = Array.isArray(item.photos) && item.photos.length ? item.photos : [item.image];
+      const mainPhoto = photos[0] || 'assets/car-silver.jpg';
+      const thumbnails = photos.length > 1 ? `
+        <div class="detail-thumbs" aria-label="Фотографии объявления">
+          ${photos.map((photo, index) => `<button class="detail-thumb ${index === 0 ? 'active' : ''}" type="button" data-detail-photo="${escapeHtml(photo)}" aria-label="Показать фото ${index + 1}"><img src="${escapeHtml(photo)}" alt="" /></button>`).join('')}
+        </div>` : '';
       const ownerActions = isOwner ? `
         <div class="owner-actions">
           <p>Управление вашим объявлением</p>
@@ -671,7 +684,7 @@
         </div>` : '';
       document.getElementById('detailCard').innerHTML = `
         <div class="modal-head"><span class="badge" style="position:static">${escapeHtml(item.badge)}</span><button class="close" data-close="detailModal">×</button></div>
-        <div class="detail-cover"><img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" onerror="this.onerror=null;this.src='assets/car-silver.jpg'" /></div>
+        <div class="detail-gallery"><div class="detail-cover"><img id="detailMainPhoto" src="${escapeHtml(mainPhoto)}" alt="${escapeHtml(item.title)}" onerror="this.onerror=null;this.src='assets/car-silver.jpg'" /></div>${thumbnails}</div>
         <div class="detail-content"><div class="specs"><span>${escapeHtml(item.year)}</span><span>${escapeHtml(item.mileage)}</span><span>${escapeHtml(item.city || 'Цхинвал')}</span></div><h2>${escapeHtml(item.title)}</h2><p class="detail-price">${money(item.price)}</p><p>${escapeHtml(item.desc)}</p><div class="contact-row">${contacts || '<span>Контакты продавца не указаны</span>'}</div>${ownerActions}</div>`;
       openModal('detailModal');
     }
@@ -725,6 +738,12 @@
       const close = e.target.closest('[data-close]');
       if (close) closeModal(close.dataset.close);
       if (e.target.classList.contains('modal')) closeModal(e.target.id);
+      const detailPhoto = e.target.closest('[data-detail-photo]');
+      if (detailPhoto) {
+        const mainPhoto = document.getElementById('detailMainPhoto');
+        if (mainPhoto) mainPhoto.src = detailPhoto.dataset.detailPhoto;
+        document.querySelectorAll('[data-detail-photo]').forEach(button => button.classList.toggle('active', button === detailPhoto));
+      }
       const fav = e.target.closest('[data-fav]');
       if (fav) {
         e.stopPropagation(); const id = String(fav.dataset.fav);
@@ -877,12 +896,13 @@
             8: 'assets/car-black.jpg',
             9: 'assets/car-black.jpg'
           };
-          listings = payload.listings.map(item => ({
-            ...item,
-            image: item.image && item.image !== 'assets/car-silver.jpg'
+          listings = payload.listings.map(item => {
+            const photoUrls = Array.isArray(item.photo_urls) ? item.photo_urls.filter(Boolean) : [];
+            const image = photoUrls[0] || (item.image && item.image !== 'assets/car-silver.jpg'
               ? item.image
-              : fallbackImages[item.id] || (item.type === 'moto' ? 'assets/motorcycle.jpg' : item.type === 'trucks' ? 'assets/truck.jpg' : 'assets/car-silver.jpg')
-          })).sort((a, b) => Number(b.id) - Number(a.id));
+              : fallbackImages[item.id] || (item.type === 'moto' ? 'assets/motorcycle.jpg' : item.type === 'trucks' ? 'assets/truck.jpg' : 'assets/car-silver.jpg'));
+            return { ...item, image, photos: photoUrls.length ? photoUrls : [image] };
+          }).sort((a, b) => Number(b.id) - Number(a.id));
           updateCounters(); render();
           showToast(`Загружено из таблицы: ${pluralizeRu(listings.length, 'объявление', 'объявления', 'объявлений')}`);
         }
