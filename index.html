@@ -199,6 +199,11 @@
     .contact-row button { border: 0; border-radius: 13px; padding: 14px; font-weight: 800; }
     .phone-btn { background: var(--red); color: #fff; }
     .tg-btn { background: #eaf6ff; color: #1289d4; }
+    .owner-actions { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .owner-actions p { grid-column: 1 / -1; margin: 0; font-size: 13px; font-weight: 750; }
+    .owner-actions button { border: 0; border-radius: 13px; padding: 13px; font-weight: 800; }
+    .mark-sold-btn { background: #eaf8f2; color: var(--green); }
+    .remove-listing-btn { background: #fff1ef; color: #8d3430; }
 
     .toast { position: fixed; left: 50%; bottom: 24px; z-index: 70; transform: translate(-50%, 30px); opacity: 0; pointer-events: none; background: #17191c; color: #fff; padding: 13px 18px; border-radius: 13px; font-size: 13px; font-weight: 700; transition: .25s ease; box-shadow: var(--shadow); }
     .toast.show { transform: translate(-50%, 0); opacity: 1; }
@@ -251,6 +256,8 @@
       .form-grid { grid-template-columns: 1fr; }
       .field.full { grid-column: auto; }
       .contact-row { grid-template-columns: 1fr; }
+      .owner-actions { grid-template-columns: 1fr; }
+      .owner-actions p { grid-column: auto; }
       .modal { padding: 8px; align-items: end; }
       .modal-card { max-height: calc(100vh - 12px); border-radius: 25px 25px 12px 12px; }
       .mobile-nav {
@@ -452,6 +459,7 @@
     let listings = DEMO_LISTINGS;
     const APP_CONFIG = window.AVITO_CONFIG || {};
     const API_URL = APP_CONFIG.listingsApiUrl || '';
+    const MANAGE_API_URL = APP_CONFIG.listingsManageApiUrl || '';
     const AUTH_API_URL = APP_CONFIG.telegramAuthApiUrl || '';
     const AUTH_ME_URL = APP_CONFIG.telegramAuthMeApiUrl || '';
     const AUTH_STORAGE_KEY = 'avito-tsk-auth';
@@ -646,11 +654,44 @@
         item.phone ? '<button class="phone-btn" data-contact="phone">Позвонить продавцу</button>' : '',
         item.telegram ? '<button class="tg-btn" data-contact="telegram">Написать в Telegram</button>' : ''
       ].filter(Boolean).join('');
+      const isOwner = currentAuth?.user?.id && String(item.owner_telegram_id || '') === String(currentAuth.user.id);
+      const ownerActions = isOwner ? `
+        <div class="owner-actions">
+          <p>Управление вашим объявлением</p>
+          <button class="mark-sold-btn" type="button" data-owner-action="sold" data-listing-id="${escapeHtml(item.id)}">Продано</button>
+          <button class="remove-listing-btn" type="button" data-owner-action="removed" data-listing-id="${escapeHtml(item.id)}">Снять с публикации</button>
+        </div>` : '';
       document.getElementById('detailCard').innerHTML = `
         <div class="modal-head"><span class="badge" style="position:static">${escapeHtml(item.badge)}</span><button class="close" data-close="detailModal">×</button></div>
         <div class="detail-cover"><img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" onerror="this.onerror=null;this.src='assets/car-silver.jpg'" /></div>
-        <div class="detail-content"><div class="specs"><span>${escapeHtml(item.year)}</span><span>${escapeHtml(item.mileage)}</span><span>${escapeHtml(item.city || 'Цхинвал')}</span></div><h2>${escapeHtml(item.title)}</h2><p class="detail-price">${money(item.price)}</p><p>${escapeHtml(item.desc)}</p><div class="contact-row">${contacts || '<span>Контакты продавца не указаны</span>'}</div></div>`;
+        <div class="detail-content"><div class="specs"><span>${escapeHtml(item.year)}</span><span>${escapeHtml(item.mileage)}</span><span>${escapeHtml(item.city || 'Цхинвал')}</span></div><h2>${escapeHtml(item.title)}</h2><p class="detail-price">${money(item.price)}</p><p>${escapeHtml(item.desc)}</p><div class="contact-row">${contacts || '<span>Контакты продавца не указаны</span>'}</div>${ownerActions}</div>`;
       openModal('detailModal');
+    }
+
+    async function manageOwnListing(listingId, action) {
+      if (!currentAuth?.sessionToken || !MANAGE_API_URL) { showToast('Сервис управления объявлениями недоступен'); return; }
+      const message = action === 'sold'
+        ? 'Отметить объявление как проданное? Оно исчезнет из общего списка.'
+        : 'Снять объявление с публикации? Оно исчезнет из общего списка.';
+      if (!window.confirm(message)) return;
+      const buttons = document.querySelectorAll('[data-owner-action]');
+      buttons.forEach(button => { button.disabled = true; });
+      try {
+        const response = await fetch(MANAGE_API_URL, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+          body: JSON.stringify({ listingId, action, sessionToken: currentAuth.sessionToken })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Не удалось обновить объявление');
+        closeModal('detailModal');
+        await loadListingsFromSheet();
+        showToast(action === 'sold' ? 'Объявление отмечено как проданное' : 'Объявление снято с публикации');
+      } catch (error) {
+        showToast(error.message || 'Ошибка управления объявлением');
+        buttons.forEach(button => { button.disabled = false; });
+      }
     }
 
     function openContact(type) {
@@ -687,6 +728,8 @@
       if (card) showDetails(card.dataset.id);
       const contact = e.target.closest('[data-contact]');
       if (contact) openContact(contact.dataset.contact);
+      const ownerAction = e.target.closest('[data-owner-action]');
+      if (ownerAction) manageOwnListing(ownerAction.dataset.listingId, ownerAction.dataset.ownerAction);
     });
 
     document.querySelectorAll('.category').forEach(btn => btn.addEventListener('click', () => {
