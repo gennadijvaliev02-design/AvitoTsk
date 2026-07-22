@@ -513,7 +513,8 @@
     function storedAuth() {
       try {
         const saved = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || 'null');
-        if (saved?.sessionToken && decodeSessionExpiry(saved.sessionToken) * 1000 > Date.now()) return saved;
+        const expiresAt = decodeSessionExpiry(saved?.sessionToken) * 1000;
+        if (saved?.sessionToken && (!expiresAt || expiresAt > Date.now())) return saved;
       } catch (error) {}
       localStorage.removeItem(AUTH_STORAGE_KEY);
       return null;
@@ -532,7 +533,14 @@
           body: params
         });
         const result = await response.json();
-        if (!response.ok || !result.ok) return false;
+        if (!response.ok || !result.ok) {
+          if (response.status === 401 || response.status === 403) {
+            currentAuth = null;
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            renderAuth();
+          }
+          return false;
+        }
         currentAuth = { user: result.user, sessionToken: result.sessionToken || saved?.sessionToken || '' };
         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentAuth));
         localStorage.removeItem(AUTH_SIGNED_OUT_KEY);
