@@ -332,11 +332,11 @@
           <div><h2>Категории</h2><p class="section-subtitle">Всё нужное — в одном месте</p></div>
         </div>
         <div class="categories" id="categoryList">
-          <button class="category active" data-category="all"><span class="cat-icon"><img src="assets/car-silver.jpg" alt="Автомобили"></span><strong>Весь транспорт</strong><small>1 248 объявлений</small></button>
-          <button class="category" data-category="cars"><span class="cat-icon"><img src="assets/car-black.jpg" alt="Автомобили"></span><strong>Автомобили</strong><small>934 объявления</small></button>
-          <button class="category" data-category="moto"><span class="cat-icon"><img src="assets/motorcycle.jpg" alt="Мотоциклы"></span><strong>Мотоциклы</strong><small>87 объявлений</small></button>
-          <button class="category" data-category="trucks"><span class="cat-icon"><img src="assets/truck.jpg" alt="Грузовая техника"></span><strong>Грузовые</strong><small>64 объявления</small></button>
-          <button class="category" data-category="parts"><span class="cat-icon"><img src="assets/parts.jpg" alt="Запчасти"></span><strong>Запчасти</strong><small>163 объявления</small></button>
+          <button class="category active" data-category="all"><span class="cat-icon"><img src="assets/car-silver.jpg" alt="Автомобили"></span><strong>Весь транспорт</strong><small>загрузка…</small></button>
+          <button class="category" data-category="cars"><span class="cat-icon"><img src="assets/car-black.jpg" alt="Автомобили"></span><strong>Автомобили</strong><small>загрузка…</small></button>
+          <button class="category" data-category="moto"><span class="cat-icon"><img src="assets/motorcycle.jpg" alt="Мотоциклы"></span><strong>Мотоциклы</strong><small>загрузка…</small></button>
+          <button class="category" data-category="trucks"><span class="cat-icon"><img src="assets/truck.jpg" alt="Грузовая техника"></span><strong>Грузовые</strong><small>загрузка…</small></button>
+          <button class="category" data-category="parts"><span class="cat-icon"><img src="assets/parts.jpg" alt="Запчасти"></span><strong>Запчасти</strong><small>загрузка…</small></button>
           <button class="category" data-category="other"><span class="cat-icon"><img src="assets/other.jpg" alt="Другие разделы"></span><strong>Другие разделы</strong><small>Недвижимость и услуги</small></button>
         </div>
       </div>
@@ -385,7 +385,7 @@
           <div class="field"><label>МОДЕЛЬ *</label><input name="model" maxlength="80" placeholder="Camry" required /></div>
           <div class="field"><label>ГОД *</label><input name="year" type="number" min="1950" max="2027" placeholder="2020" required /></div>
           <div class="field"><label>ПРОБЕГ, КМ</label><input name="mileage_km" type="number" min="0" placeholder="Можно пропустить" /></div>
-          <div class="field full"><label>ФОТОГРАФИИ *</label><div class="photo-drop"><input id="photos" name="photos" type="file" accept="image/*" multiple required /><label for="photos">Выбрать фотографии</label><div id="photoStatus">до 10 фотографий · сайт сам уменьшит размер</div></div></div>
+          <div class="field full"><label>ФОТОГРАФИИ *</label><div class="photo-drop"><input id="photos" name="photos" type="file" accept="image/*" multiple required /><label for="photos">Выбрать фотографии</label><div id="photoStatus">Можно загрузить фотографии</div></div></div>
           <div class="field full"><label>ОПИСАНИЕ</label><textarea name="description" maxlength="3000" placeholder="Расскажите о состоянии и комплектации. Можно пропустить."></textarea></div>
           <div class="field"><label>ТЕЛЕФОН</label><input name="phone" type="tel" maxlength="40" placeholder="+7 929 000-00-00" /></div>
           <div class="field"><label>TELEGRAM</label><input name="telegram" maxlength="120" placeholder="@username или ссылка" /></div>
@@ -478,6 +478,20 @@
     const saveFavorites = () => {
       try { localStorage.setItem('avito-tsk-favorites', JSON.stringify([...favorites])); } catch (error) {}
     };
+
+    function pluralizeRu(count, one, few, many) {
+      const absolute = Math.abs(Math.trunc(Number(count)));
+      const lastTwoDigits = absolute % 100;
+      const lastDigit = absolute % 10;
+      const form = lastTwoDigits >= 11 && lastTwoDigits <= 14
+        ? many
+        : lastDigit === 1
+          ? one
+          : lastDigit >= 2 && lastDigit <= 4
+            ? few
+            : many;
+      return `${count} ${form}`;
+    }
 
     function decodeSessionExpiry(token) {
       try {
@@ -593,7 +607,8 @@
           </div>
         </article>`).join('');
       emptyEl.classList.toggle('show', items.length === 0);
-      resultText.textContent = favoritesOnly ? `В избранном: ${items.length}` : `Найдено объявлений: ${items.length}`;
+      const resultCount = pluralizeRu(items.length, 'объявление', 'объявления', 'объявлений');
+      resultText.textContent = favoritesOnly ? `В избранном: ${resultCount}` : `Найдено: ${resultCount}`;
       document.getElementById('favCount').textContent = favorites.size;
     }
 
@@ -603,14 +618,14 @@
         result[item.type] = (result[item.type] || 0) + 1;
         return result;
       }, { all: 0 });
-      document.getElementById('heroCount').textContent = `${counts.cars || 0} автомобилей`;
+      document.getElementById('heroCount').textContent = pluralizeRu(counts.cars || 0, 'автомобиль', 'автомобиля', 'автомобилей');
       document.querySelectorAll('.category').forEach(button => {
         const type = button.dataset.category;
         const count = type === 'other'
           ? listings.filter(item => !['cars','moto','trucks','parts'].includes(item.type)).length
           : (counts[type] || 0);
         const small = button.querySelector('small');
-        if (small) small.textContent = `${count} ${count === 1 ? 'объявление' : 'объявлений'}`;
+        if (small) small.textContent = pluralizeRu(count, 'объявление', 'объявления', 'объявлений');
       });
     }
 
@@ -701,19 +716,22 @@
     const MAX_PHOTOS = 10;
     const MAX_IMAGE_SIDE = 1600;
     const JPEG_QUALITY = .82;
+    const PHOTO_LIMIT_TEXT = `до ${pluralizeRu(MAX_PHOTOS, 'фотографии', 'фотографий', 'фотографий')} · сайт сам уменьшит размер`;
+    photoStatus.textContent = PHOTO_LIMIT_TEXT;
 
     photoInput.addEventListener('change', e => {
       const files = [...e.target.files];
       if (files.length > MAX_PHOTOS) {
         e.target.value = '';
-        photoStatus.textContent = 'Можно выбрать не больше 10 фотографий';
-        showToast('Выберите не больше 10 фотографий');
+        const limit = pluralizeRu(MAX_PHOTOS, 'фотографии', 'фотографий', 'фотографий');
+        photoStatus.textContent = `Можно выбрать не больше ${limit}`;
+        showToast(`Выберите не больше ${limit}`);
         return;
       }
       const megabytes = files.reduce((sum, file) => sum + file.size, 0) / 1024 / 1024;
       photoStatus.textContent = files.length
-        ? `Выбрано: ${files.length} · исходный размер ${megabytes.toFixed(1)} МБ · перед отправкой сожмём`
-        : 'до 10 фотографий · сайт сам уменьшит размер';
+        ? `Выбрано: ${pluralizeRu(files.length, 'фото', 'фото', 'фото')} · исходный размер ${megabytes.toFixed(1)} МБ · перед отправкой сожмём`
+        : PHOTO_LIMIT_TEXT;
     });
 
     const blobToBase64 = blob => new Promise((resolve, reject) => {
@@ -764,7 +782,7 @@
       try {
         const compressedPhotos = [];
         for (let index = 0; index < photos.length; index++) {
-          photoStatus.textContent = `Сжимаем фотографию ${index + 1} из ${photos.length}…`;
+          photoStatus.textContent = `Сжимаем фото ${index + 1} из ${pluralizeRu(photos.length, 'фото', 'фото', 'фото')}…`;
           compressedPhotos.push(await compressPhoto(photos[index]));
         }
         submit.textContent = 'Публикуем…';
@@ -783,7 +801,7 @@
         const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
         const result = await response.json();
         if (!result.ok) throw new Error(result.error || 'Не удалось опубликовать');
-        closeModal('sellModal'); form.reset(); photoStatus.textContent='до 10 фотографий · сайт сам уменьшит размер'; showToast('Объявление опубликовано на 21 день ✓');
+        closeModal('sellModal'); form.reset(); photoStatus.textContent = PHOTO_LIMIT_TEXT; showToast('Объявление опубликовано на 21 день ✓');
         await loadListingsFromSheet();
       } catch (error) {
         photoStatus.textContent = 'Проверьте фотографии и попробуйте ещё раз';
@@ -815,7 +833,7 @@
               : fallbackImages[item.id] || (item.type === 'moto' ? 'assets/motorcycle.jpg' : item.type === 'trucks' ? 'assets/truck.jpg' : 'assets/car-silver.jpg')
           })).sort((a, b) => Number(b.id) - Number(a.id));
           updateCounters(); render();
-          showToast(`Загружено из таблицы: ${listings.length}`);
+          showToast(`Загружено из таблицы: ${pluralizeRu(listings.length, 'объявление', 'объявления', 'объявлений')}`);
         }
       } catch (error) {
         console.warn('Google Sheets API недоступен, оставляем демо-данные', error);
