@@ -140,6 +140,14 @@
     .specs span { background: var(--soft); border-radius: 8px; padding: 6px 8px; }
     .meta { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; color: #92969c; font-size: 12px; }
     .verified { color: var(--green); font-weight: 750; }
+    .loading-card { pointer-events: none; }
+    .skeleton { background: linear-gradient(90deg, #f0f1f3 25%, #fafafa 50%, #f0f1f3 75%); background-size: 200% 100%; animation: skeleton-loading 1.25s infinite; }
+    .skeleton-image { aspect-ratio: 1.55; }
+    .skeleton-body { padding: 18px; }
+    .skeleton-line { height: 14px; margin-bottom: 12px; border-radius: 7px; }
+    .skeleton-line.wide { width: 72%; height: 22px; }
+    .skeleton-line.short { width: 46%; }
+    @keyframes skeleton-loading { to { background-position: -200% 0; } }
 
     .empty { display: none; padding: 56px 20px; text-align: center; border-radius: 20px; background: var(--soft); color: var(--muted); }
     .empty.show { display: block; }
@@ -449,19 +457,18 @@
 
   <script src="config.js"></script>
   <script>
-    const DEMO_LISTINGS = [
-      { id: 1, title: 'Toyota Camry 3.5 AT', price: 3650000, year: 2021, mileage: '48 000 км', type: 'cars', age: 'recent', badge: 'Проверено', image: 'assets/car-silver.jpg', posted: 'сегодня, 09:24', desc: 'Автомобиль в отличном состоянии. Один владелец, своевременное обслуживание, богатая комплектация.' },
-      { id: 2, title: 'Mercedes-Benz E 200', price: 4890000, year: 2022, mileage: '31 000 км', type: 'cars', age: 'recent', badge: 'Без ДТП', image: 'assets/car-black.jpg', posted: 'сегодня, 08:10', desc: 'Комфортный и ухоженный автомобиль. Оригинальный пробег, все ключи и документы на руках.' },
-      { id: 3, title: 'BMW X5 xDrive30d', price: 6150000, year: 2020, mileage: '67 000 км', type: 'cars', age: 'recent', badge: 'Срочная продажа', image: 'assets/car-black.jpg', posted: 'вчера, 21:45', desc: 'Полный привод, дизель, отличная динамика. Машина полностью обслужена и готова к проверкам.' },
-      { id: 4, title: 'LADA Priora', price: 740000, year: 2015, mileage: '126 000 км', type: 'cars', age: 'recent', badge: 'Хорошая цена', image: 'assets/car-silver.jpg', posted: 'вчера, 18:06', desc: 'Надёжный автомобиль на каждый день. Технически исправен, документы в порядке.' },
-      { id: 5, title: 'Lexus LX 600 Premium', price: 17800000, year: 2024, mileage: '8 000 км', type: 'cars', age: 'recent', badge: 'Малый пробег', image: 'assets/car-black.jpg', posted: 'вчера, 14:30', desc: 'Внедорожник с небольшим пробегом. Максимальная комплектация, бережная эксплуатация.' },
-      { id: 6, title: 'Yamaha MT-09', price: 1250000, year: 2023, mileage: '4 200 км', type: 'moto', age: 'recent', badge: 'Мото', image: 'assets/motorcycle.jpg', posted: '17 июля, 16:42', desc: 'Яркий городской мотоцикл. Гаражное хранение, без падений, полностью обслужен.' },
-      { id: 7, title: 'Toyota Land Cruiser 200', price: 5350000, year: 2016, mileage: '142 000 км', type: 'cars', age: 'old', badge: 'Торг', image: 'assets/car-silver.jpg', posted: '4 июля, 12:18', desc: 'Надёжный рамный внедорожник. Хорошее техническое состояние, возможен разумный торг у автомобиля.' },
-      { id: 8, title: 'Hyundai Solaris 1.6 AT', price: 1190000, year: 2018, mileage: '98 000 км', type: 'cars', age: 'old', badge: 'Один владелец', image: 'assets/car-black.jpg', posted: '28 июня, 17:05', desc: 'Экономичный городской автомобиль. Один владелец, аккуратный салон, кондиционер работает.' },
-      { id: 9, title: 'Mercedes-Benz C 180', price: 2450000, year: 2017, mileage: '105 000 км', type: 'cars', age: 'old', badge: 'В хорошем состоянии', image: 'assets/car-black.jpg', posted: '12 июня, 10:40', desc: 'Ухоженный седан, обслуживание по регламенту. Комплект летней и зимней резины.' }
-    ];
-
-    let listings = DEMO_LISTINGS;
+    const LISTINGS_CACHE_KEY = 'avito-tsk-listings-cache-v1';
+    function loadCachedListings() {
+      try {
+        const cached = JSON.parse(localStorage.getItem(LISTINGS_CACHE_KEY) || 'null');
+        return Array.isArray(cached?.listings) ? cached.listings : [];
+      } catch (error) { return []; }
+    }
+    function saveListingsCache(items) {
+      try { localStorage.setItem(LISTINGS_CACHE_KEY, JSON.stringify({ listings: items, savedAt: Date.now() })); } catch (error) {}
+    }
+    let listings = loadCachedListings();
+    let listingsLoading = listings.length === 0;
     const APP_CONFIG = window.AVITO_CONFIG || {};
     const API_URL = APP_CONFIG.listingsApiUrl || '';
     const MANAGE_API_URL = APP_CONFIG.listingsManageApiUrl || '';
@@ -614,6 +621,17 @@
     }
 
     function render() {
+      if (listingsLoading && !listings.length) {
+        cardsEl.innerHTML = Array.from({ length: 3 }, () => `
+          <article class="card loading-card" aria-hidden="true">
+            <div class="skeleton skeleton-image"></div>
+            <div class="skeleton-body"><div class="skeleton skeleton-line wide"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line short"></div></div>
+          </article>`).join('');
+        emptyEl.classList.remove('show');
+        resultText.textContent = 'Загружаем объявления…';
+        document.getElementById('favCount').textContent = favorites.size;
+        return;
+      }
       const items = filteredListings();
       cardsEl.innerHTML = items.map(item => `
         <article class="card" data-id="${escapeHtml(item.id)}">
@@ -880,10 +898,11 @@
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal.open').forEach(x => closeModal(x.id)); });
     async function loadListingsFromSheet() {
-      if (!API_URL) return;
+      if (!API_URL) { listingsLoading = false; render(); return; }
       try {
         const response = await fetch(API_URL);
         const payload = await response.json();
+        if (!response.ok || !payload.ok || !Array.isArray(payload.listings)) throw new Error(payload.error || 'Не удалось загрузить объявления');
         if (payload.ok && Array.isArray(payload.listings)) {
           const fallbackImages = {
             1: 'assets/car-silver.jpg',
@@ -903,17 +922,22 @@
               : fallbackImages[item.id] || (item.type === 'moto' ? 'assets/motorcycle.jpg' : item.type === 'trucks' ? 'assets/truck.jpg' : 'assets/car-silver.jpg'));
             return { ...item, image, photos: photoUrls.length ? photoUrls : [image] };
           }).sort((a, b) => Number(b.id) - Number(a.id));
+          listingsLoading = false;
+          saveListingsCache(listings);
+          emptyEl.textContent = 'По вашему запросу пока ничего не найдено. Попробуйте изменить фильтры.';
           updateCounters(); render();
           showToast(`Загружено из таблицы: ${pluralizeRu(listings.length, 'объявление', 'объявления', 'объявлений')}`);
         }
       } catch (error) {
-        console.warn('Google Sheets API недоступен, оставляем демо-данные', error);
+        console.warn('API объявлений временно недоступен, оставляем сохранённый список', error);
+        listingsLoading = false;
+        if (!listings.length) emptyEl.textContent = 'Не удалось загрузить объявления. Попробуйте обновить страницу.';
         updateCounters(); render();
       }
     }
 
-    loadAuth(); updateCounters(); render();
     loadListingsFromSheet();
+    loadAuth(); updateCounters(); render();
   </script>
 </body>
 </html>
