@@ -54,6 +54,7 @@
     nav a { color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 650; }
     nav a:hover { color: var(--red); }
     .header-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .header-sell-short, .header-sell-icon { display: none; }
     .ghost-btn, .primary-btn, .icon-btn {
       border: 0; border-radius: 13px; font-weight: 750; transition: .2s ease;
     }
@@ -211,13 +212,15 @@
     @media (max-width: 640px) {
       body { padding-bottom: 74px; }
       .container { width: min(100% - 28px, 1180px); }
-      .topbar { min-height: 62px; }
-      .brand-mark { width: 34px; height: 34px; border-radius: 11px; font-size: 18px; }
-      .brand-name { font-size: 17px; }
+      .topbar.container { width: min(100% - 16px, 1180px); }
+      .topbar { min-height: 62px; gap: 6px; }
+      .brand { gap: 7px; min-width: 0; }
+      .brand-mark { flex: 0 0 auto; width: 32px; height: 32px; border-radius: 10px; font-size: 17px; }
+      .brand-name { font-size: 15px; white-space: nowrap; }
       .header-actions .ghost-btn { display: none; }
-      .header-actions { gap: 6px; }
-      .auth-btn { max-width: 112px; overflow: hidden; text-overflow: ellipsis; padding: 11px 12px; font-size: 12px; }
-      .header-actions .primary-btn { font-size: 12px; padding: 11px 13px; }
+      .header-actions { gap: 4px; }
+      .auth-btn { flex: 0 0 auto; max-width: none; overflow: visible; text-overflow: clip; padding: 10px; font-size: 13px; }
+      .header-actions .header-sell-btn { flex: 0 0 auto; font-size: 13px; padding: 10px; }
       .hero { padding: 18px 0 20px; }
       .hero-panel {
         min-height: 455px; padding: 27px 23px; border-radius: 25px; background-position: 68% center;
@@ -258,6 +261,24 @@
       .mobile-nav button span { font-size: 19px; }
       .mobile-nav button.active { color: var(--red); }
     }
+
+    @media (max-width: 430px) {
+      .header-sell-full { display: none; }
+      .header-sell-short { display: inline; }
+    }
+
+    @media (max-width: 360px) {
+      .topbar.container { width: calc(100% - 12px); }
+      .topbar { gap: 4px; }
+      .brand { gap: 5px; }
+      .brand-mark { width: 30px; height: 30px; font-size: 16px; }
+      .brand-name { font-size: 14px; }
+      .header-actions { gap: 3px; }
+      .auth-btn { padding: 9px 8px; }
+      .header-actions .header-sell-btn { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; font-size: 18px; }
+      .header-sell-short { display: none; }
+      .header-sell-icon { display: inline; }
+    }
   </style>
 </head>
 <body>
@@ -273,7 +294,11 @@
       <div class="header-actions">
         <button class="auth-btn" id="authBtn" type="button">Войти</button>
         <button class="ghost-btn" id="favoritesBtn">♡ Избранное <span id="favCount">0</span></button>
-        <button class="primary-btn open-sell">+ Подать объявление</button>
+        <button class="primary-btn open-sell header-sell-btn" type="button" aria-label="Подать объявление">
+          <span class="header-sell-full">+ Подать объявление</span>
+          <span class="header-sell-short" aria-hidden="true">+ Подать</span>
+          <span class="header-sell-icon" aria-hidden="true">+</span>
+        </button>
       </div>
     </div>
   </header>
