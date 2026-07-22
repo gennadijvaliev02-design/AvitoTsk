@@ -428,7 +428,9 @@
     const APP_CONFIG = window.AVITO_CONFIG || {};
     const API_URL = APP_CONFIG.listingsApiUrl || '';
     const AUTH_API_URL = APP_CONFIG.telegramAuthApiUrl || '';
+    const AUTH_ME_URL = APP_CONFIG.telegramAuthMeApiUrl || '';
     const AUTH_STORAGE_KEY = 'avito-tsk-auth';
+    const AUTH_SIGNED_OUT_KEY = 'avito-tsk-auth-signed-out';
     const cardsEl = document.getElementById('cards');
     const emptyEl = document.getElementById('emptyState');
     const resultText = document.getElementById('resultsText');
@@ -461,13 +463,41 @@
       } catch (error) { return 0; }
     }
 
-    function loadAuth() {
+    function storedAuth() {
       try {
         const saved = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || 'null');
-        if (saved?.sessionToken && decodeSessionExpiry(saved.sessionToken) * 1000 > Date.now()) currentAuth = saved;
-        else localStorage.removeItem(AUTH_STORAGE_KEY);
-      } catch (error) { localStorage.removeItem(AUTH_STORAGE_KEY); }
+        if (saved?.sessionToken && decodeSessionExpiry(saved.sessionToken) * 1000 > Date.now()) return saved;
+      } catch (error) {}
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      return null;
+    }
+
+    async function refreshCurrentUser() {
+      if (!AUTH_ME_URL || localStorage.getItem(AUTH_SIGNED_OUT_KEY) === '1') return false;
+      const saved = currentAuth || storedAuth();
+      const params = new URLSearchParams();
+      if (saved?.sessionToken) params.set('sessionToken', saved.sessionToken);
+      try {
+        const response = await fetch(AUTH_ME_URL, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) return false;
+        currentAuth = { user: result.user, sessionToken: result.sessionToken || saved?.sessionToken || '' };
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentAuth));
+        localStorage.removeItem(AUTH_SIGNED_OUT_KEY);
+        renderAuth();
+        return true;
+      } catch (error) { return false; }
+    }
+
+    function loadAuth() {
+      currentAuth = storedAuth();
       renderAuth();
+      if (localStorage.getItem(AUTH_SIGNED_OUT_KEY) !== '1') refreshCurrentUser();
     }
 
     function renderAuth() {
@@ -495,12 +525,14 @@
         if (value !== undefined && value !== null) params.set(key, String(value));
       });
       try {
-        const response = await fetch(AUTH_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params });
+        const response = await fetch(AUTH_API_URL, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params });
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || 'Не удалось войти');
         currentAuth = { user: result.user, sessionToken: result.sessionToken };
         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentAuth));
-        renderAuth(); closeModal('authModal'); showToast('Вход выполнен ✓');
+        localStorage.removeItem(AUTH_SIGNED_OUT_KEY);
+        if (!await refreshCurrentUser()) throw new Error('Не удалось обновить состояние входа');
+        closeModal('authModal'); showToast('Вход выполнен ✓');
         if (pendingAction === 'sell') { pendingAction = null; openModal('sellModal'); }
       } catch (error) { showToast(error.message || 'Ошибка авторизации'); }
     };
@@ -634,8 +666,10 @@
     document.getElementById('mobileFav').addEventListener('click', showFavorites);
     document.getElementById('authBtn').addEventListener('click', () => openModal('authModal'));
     document.getElementById('logoutBtn').addEventListener('click', () => {
-      currentAuth = null; pendingAction = null; localStorage.removeItem(AUTH_STORAGE_KEY); renderAuth(); closeModal('authModal'); showToast('Вы вышли из аккаунта');
+      currentAuth = null; pendingAction = null; localStorage.removeItem(AUTH_STORAGE_KEY); localStorage.setItem(AUTH_SIGNED_OUT_KEY, '1'); renderAuth(); closeModal('authModal'); showToast('Вы вышли из аккаунта');
     });
+    window.addEventListener('focus', () => refreshCurrentUser());
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshCurrentUser(); });
     document.querySelectorAll('[data-scroll]').forEach(btn => btn.addEventListener('click', () => window.scrollTo({top: btn.dataset.scroll === 'top' ? 0 : document.getElementById(btn.dataset.scroll).offsetTop - 70, behavior:'smooth'})));
     const photoInput = document.getElementById('photos');
     const photoStatus = document.getElementById('photoStatus');
